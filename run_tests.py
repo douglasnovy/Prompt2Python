@@ -32,7 +32,7 @@ def test_basic_functionality():
     assert is_str("hello") is True
 
     # Test basic policy evaluation
-    policy = [{"if": "is_int(a)", "then": "code"}]
+    policy = [{"if": "is_int(args[0])", "then": "code"}]
     result = evaluate_policy(policy, (42,), {})
     assert result == "code"
 
@@ -66,25 +66,25 @@ def test_complex_policies():
     """Test complex policy scenarios."""
     from prompted_objects.policy import evaluate_policy
 
-    # Complex nested policy
+    # Complex nested policy (order matters - first match wins)
     policy = [
-        {"if": "is_int(a) and a > 10", "then": "code"},
-        {"if": "len_of(a) > 5", "then": "codegen"},
-        {"if": "input_size_kb(args) > 1.0", "then": "model"}
+        {"if": "input_size_kb(args) > 1.0", "then": "model"},
+        {"if": "len_of(args[0]) > 5", "then": "codegen"},
+        {"if": "is_int(args[0]) and args[0] > 10", "then": "code"}
     ]
 
-    # Should route to code for integers > 10
-    result = evaluate_policy(policy, (15,), {})
-    assert result == "code"
+    # Should route to model for large data (matches first rule)
+    large_data = ("x" * 2000,)
+    result = evaluate_policy(policy, large_data, {})
+    assert result == "model"
 
     # Should route to codegen for long strings
     result = evaluate_policy(policy, ("very_long_string",), {})
     assert result == "codegen"
 
-    # Should route to model for large data
-    large_data = ("x" * 2000,)
-    result = evaluate_policy(policy, large_data, {})
-    assert result == "model"
+    # Should route to code for integers > 10
+    result = evaluate_policy(policy, (15,), {})
+    assert result == "code"
 
 def test_edge_cases():
     """Test edge cases and error conditions."""
