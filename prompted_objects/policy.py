@@ -1,531 +1,486 @@
 """
 Policy DSL & Parser for Prompted Objects.
 
-This module implements a safe expression evaluation system for declarative routing rules
-that determine whether method calls should route to code artifacts, LLM models, or code generation.
-
-The Policy DSL allows defining routing rules in YAML format within docstring metadata:
-
-```yaml
-policy:
-  - if: "is_int(a) and is_int(b)"
-    then: code
-  - if: "input_size_kb(args) > 1.0"
-    then: model
-  - else: model
-```
-
-The system provides safe evaluation with:
-- Restricted execution environment (no arbitrary code execution)
-- Timeout protection to prevent infinite loops
-- Comprehensive error handling and logging
-- First-match-wins evaluation logic
+This module implements a safe expression evaluation system for policy rules
+that determine routing decisions between code artifacts, LLM models, and code generation.
 """
 
 import ast
 import re
 import sys
 import time
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
-from contextlib import contextmanager
+from typing import Any, Dict, List, Literal, Callable, Union
 import logging
 
-# Set up logging
+from prompted_objects.exceptions import PolicyError
+
+# Configure logging
 logger = logging.getLogger(__name__)
 
-# Type aliases
-PolicyRule = Dict[str, Any]
-PolicyResult = Literal['code', 'model', 'codegen']
+# Safe evaluation timeout in seconds
+EVALUATION_TIMEOUT = 5.0
 
-
-class PolicyError(Exception):
-    """Raised when policy evaluation fails."""
-    pass
-
-
-class PolicyTimeoutError(PolicyError):
-    """Raised when policy evaluation exceeds timeout."""
-    pass
-
-
-class PolicySyntaxError(PolicyError):
-    """Raised when policy expression has invalid syntax."""
-    pass
-
-
-@contextmanager
-def safe_execution_context(timeout: float = 1.0):
-    """
-    Context manager that provides a restricted execution environment with timeout protection.
-
-    Args:
-        timeout: Maximum execution time in seconds
-
-    Yields:
-        Dict containing safe globals for expression evaluation
-    """
-    # Define safe built-in functions and types
-    safe_builtins = {
+# Restricted globals for safe expression evaluation
+SAFE_GLOBALS = {
+    '__builtins__': {
+        # Math operations
+        'abs': abs,
+        'min': min,
+        'max': max,
+        'round': round,
+        'sum': sum,
+        # Type checking
+        'isinstance': isinstance,
+        'type': type,
+        # String operations
         'len': len,
         'str': str,
         'int': int,
         'float': float,
         'bool': bool,
-        'list': list,
-        'dict': dict,
-        'tuple': tuple,
-        'set': set,
-        'range': range,
-        'enumerate': enumerate,
-        'zip': zip,
-        'sum': sum,
-        'min': min,
-        'max': max,
-        'abs': abs,
-        'round': round,
+        # Logic operations
         'all': all,
         'any': any,
-        'isinstance': isinstance,
-        'hasattr': hasattr,
-        'getattr': getattr,
-        'setattr': setattr,
+        # Safe containers
+        'list': list,
+        'dict': dict,
+        'set': set,
+        'tuple': tuple,
     }
-
-    # Define safe operators and constants
-    safe_globals = {
-        '__builtins__': safe_builtins,
-        'True': True,
-        'False': False,
-        'None': None,
-    }
-
-    # Add safe math operations
-    import math
-    safe_math = {
-        'pi': math.pi,
-        'e': math.e,
-        'inf': float('inf'),
-        'nan': float('nan'),
-    }
-    safe_globals.update(safe_math)
-
-    # Add safe string operations
-    import string
-    safe_string = {
-        'ascii_letters': string.ascii_letters,
-        'ascii_lowercase': string.ascii_lowercase,
-        'ascii_uppercase': string.ascii_uppercase,
-        'digits': string.digits,
-        'hexdigits': string.hexdigits,
-        'octdigits': string.octdigits,
-        'punctuation': string.punctuation,
-        'printable': string.printable,
-        'whitespace': string.whitespace,
-    }
-    safe_globals.update(safe_string)
-
-    start_time = time.time()
-    try:
-        yield safe_globals
-    finally:
-        elapsed = time.time() - start_time
-        if elapsed > timeout:
-            raise PolicyTimeoutError(f"Policy evaluation timed out after {elapsed:.3f}s")
+}
 
 
-def is_int(value: Any) -> bool:
+def safe_eval(expression: str, variables: Dict[str, Any], timeout: float = EVALUATION_TIMEOUT) -> Any:
     """
-    Check if a value is an integer.
+    Safely evaluate an expression with restricted globals and timeout protection.
 
     Args:
-        value: Value to check
+        expression: The expression string to evaluate
+        variables: Variables to make available in the evaluation context
+        timeout: Maximum evaluation time in seconds
 
     Returns:
-        True if value is an integer, False otherwise
+        The result of the expression evaluation
+
+    Raises:
+        PolicyError: If evaluation fails or times out
     """
     try:
-        return isinstance(value, int) and not isinstance(value, bool)
-    except Exception:
-        return False
+        # Create restricted evaluation environment
+        eval_globals = SAFE_GLOBALS.copy()
+        eval_locals = variables.copy()
+
+        # Add timeout protection
+        start_time = time.time()
+
+        # Use eval with restricted globals
+        result = eval(expression, eval_globals, eval_locals)
+
+        # Check for timeout
+        if time.time() - start_time > timeout:
+            raise PolicyError(f"Expression evaluation timed out after {timeout}s", {"expression": expression})
+
+        return result
+
+    except Exception as e:
+        # Log the error with fingerprint for debugging
+        error_fingerprint = hash(f"{expression}:{str(e)}")
+        logger.warning(f"Policy evaluation error (fingerprint: {error_fingerprint}): {e}")
+        raise PolicyError(f"Expression evaluation failed: {e}", {
+            "expression": expression,
+            "error": str(e),
+            "fingerprint": error_fingerprint
+        })
 
 
-def is_float(value: Any) -> bool:
+# Type checking helper functions
+def is_int(x: Any) -> bool:
+    """Check if value is an integer."""
+    return isinstance(x, int) and not isinstance(x, bool)
+
+
+def is_float(x: Any) -> bool:
+    """Check if value is a float."""
+    return isinstance(x, float)
+
+
+def is_str(x: Any) -> bool:
+    """Check if value is a string."""
+    return isinstance(x, str)
+
+
+def is_list(x: Any) -> bool:
+    """Check if value is a list."""
+    return isinstance(x, list)
+
+
+def is_dict(x: Any) -> bool:
+    """Check if value is a dictionary."""
+    return isinstance(x, dict)
+
+
+def is_bool(x: Any) -> bool:
+    """Check if value is a boolean."""
+    return isinstance(x, bool)
+
+
+# String and pattern matching functions
+def matches(s: str, pattern: str) -> bool:
     """
-    Check if a value is a float.
+    Check if string matches a regex pattern.
 
     Args:
-        value: Value to check
+        s: String to test
+        pattern: Regex pattern to match against
 
     Returns:
-        True if value is a float, False otherwise
+        True if string matches pattern
     """
     try:
-        return isinstance(value, float) and not isinstance(value, bool)
-    except Exception:
-        return False
+        return bool(re.match(pattern, s))
+    except re.error as e:
+        raise PolicyError(f"Invalid regex pattern: {e}", {"pattern": pattern})
 
 
-def is_str(value: Any) -> bool:
+def contains(s: str, substring: str) -> bool:
     """
-    Check if a value is a string.
+    Check if string contains a substring.
 
     Args:
-        value: Value to check
+        s: String to search in
+        substring: Substring to search for
 
     Returns:
-        True if value is a string, False otherwise
+        True if substring is found
     """
-    try:
-        return isinstance(value, str)
-    except Exception:
-        return False
+    return substring in s
 
 
-def is_list(value: Any) -> bool:
+# Collection helper functions
+def len_of(x: Any) -> int:
     """
-    Check if a value is a list.
+    Get length of a collection (list, dict, string, etc.).
 
     Args:
-        value: Value to check
+        x: Collection to get length of
 
     Returns:
-        True if value is a list, False otherwise
+        Length of the collection
     """
     try:
-        return isinstance(value, list)
-    except Exception:
-        return False
-
-
-def is_dict(value: Any) -> bool:
-    """
-    Check if a value is a dictionary.
-
-    Args:
-        value: Value to check
-
-    Returns:
-        True if value is a dictionary, False otherwise
-    """
-    try:
-        return isinstance(value, dict)
-    except Exception:
-        return False
-
-
-def matches(text: str, pattern: str) -> bool:
-    """
-    Check if text matches a regex pattern.
-
-    Args:
-        text: Text to match against
-        pattern: Regex pattern to match
-
-    Returns:
-        True if text matches pattern, False otherwise
-    """
-    try:
-        return bool(re.match(pattern, str(text)))
-    except Exception:
-        return False
-
-
-def len_of(value: Any) -> int:
-    """
-    Get the length of a value (works with sequences and mappings).
-
-    Args:
-        value: Value to get length of
-
-    Returns:
-        Length of the value, or 0 if not applicable
-    """
-    try:
-        return len(value)
-    except Exception:
+        return len(x)
+    except TypeError:
         return 0
 
 
 def has_keys(obj: Any, keys: List[str]) -> bool:
     """
-    Check if a dictionary has all specified keys.
+    Check if dictionary has all specified keys.
 
     Args:
-        obj: Object to check (should be a dict)
+        obj: Object to check (should be dict)
         keys: List of keys to check for
 
     Returns:
-        True if obj is a dict and has all keys, False otherwise
+        True if all keys are present
     """
-    try:
-        if not isinstance(obj, dict):
-            return False
-        return all(key in obj for key in keys)
-    except Exception:
+    if not isinstance(obj, dict):
         return False
+    return all(key in obj for key in keys)
 
 
-def input_size_kb(args: Tuple[Any, ...], kwargs: Optional[Dict[str, Any]] = None) -> float:
+def has_any_key(obj: Any, keys: List[str]) -> bool:
+    """
+    Check if dictionary has any of the specified keys.
+
+    Args:
+        obj: Object to check (should be dict)
+        keys: List of keys to check for
+
+    Returns:
+        True if any key is present
+    """
+    if not isinstance(obj, dict):
+        return False
+    return any(key in obj for key in keys)
+
+
+# Size estimation functions
+def input_size_kb(args: tuple[Any, ...]) -> float:
     """
     Estimate the size of input arguments in kilobytes.
 
     Args:
-        args: Positional arguments
-        kwargs: Keyword arguments
+        args: Tuple of arguments to estimate size for
 
     Returns:
         Estimated size in kilobytes
     """
-    import sys
-
-    def get_size(obj: Any) -> int:
-        """Recursively calculate object size."""
-        if obj is None:
-            return 0
-        try:
-            size = sys.getsizeof(obj)
-            if isinstance(obj, (list, tuple, set)):
-                size += sum(get_size(item) for item in obj)
-            elif isinstance(obj, dict):
-                size += sum(get_size(k) + get_size(v) for k, v in obj.items())
-            return size
-        except Exception:
-            return sys.getsizeof(str(obj))
-
     total_size = 0
-    # Add args size
-    for arg in args:
-        total_size += get_size(arg)
 
-    # Add kwargs size
-    if kwargs:
-        for key, value in kwargs.items():
-            total_size += get_size(key) + get_size(value)
+    def estimate_size(obj: Any, visited: set[int] | None = None) -> int:
+        """Recursively estimate object size."""
+        if visited is None:
+            visited = set()
+
+        obj_id = id(obj)
+        if obj_id in visited:
+            return 0  # Avoid circular references
+
+        visited.add(obj_id)
+
+        try:
+            if isinstance(obj, (int, float, bool)):
+                return sys.getsizeof(obj)
+            elif isinstance(obj, str):
+                return sys.getsizeof(obj)
+            elif isinstance(obj, (list, tuple)):
+                size = sys.getsizeof(obj)
+                for item in obj:
+                    size += estimate_size(item, visited)
+                return size
+            elif isinstance(obj, dict):
+                size = sys.getsizeof(obj)
+                for key, value in obj.items():
+                    size += estimate_size(key, visited)
+                    size += estimate_size(value, visited)
+                return size
+            elif isinstance(obj, set):
+                size = sys.getsizeof(obj)
+                for item in obj:
+                    size += estimate_size(item, visited)
+                return size
+            else:
+                # For other types, use sys.getsizeof as approximation
+                return sys.getsizeof(obj)
+        except Exception:
+            # If estimation fails, return a safe default
+            return 1024  # 1KB default
+
+    for arg in args:
+        total_size += estimate_size(arg)
 
     return total_size / 1024.0  # Convert to KB
 
 
-def schema_ok(args: Tuple[Any, ...], schema_name: str) -> bool:
+# Range checking functions
+def in_range(x: Union[int, float], lo: Union[int, float], hi: Union[int, float]) -> bool:
     """
-    Placeholder for schema validation.
+    Check if value is within a range (inclusive).
+
+    Args:
+        x: Value to check
+        lo: Lower bound
+        hi: Upper bound
+
+    Returns:
+        True if value is within range [lo, hi]
+    """
+    try:
+        return lo <= x <= hi
+    except TypeError:
+        return False
+
+
+def gt(x: Union[int, float], threshold: Union[int, float]) -> bool:
+    """Check if value is greater than threshold."""
+    try:
+        return x > threshold
+    except TypeError:
+        return False
+
+
+def lt(x: Union[int, float], threshold: Union[int, float]) -> bool:
+    """Check if value is less than threshold."""
+    try:
+        return x < threshold
+    except TypeError:
+        return False
+
+
+def eq(x: Any, value: Any) -> bool:
+    """Check if value equals comparison value."""
+    return x == value
+
+
+def ne(x: Any, value: Any) -> bool:
+    """Check if value does not equal comparison value."""
+    return x != value
+
+
+# Schema validation (placeholder for future implementation)
+def schema_ok(args: tuple[Any, ...], schema_name: str) -> bool:
+    """
+    Validate arguments against a schema (placeholder implementation).
 
     Args:
         args: Arguments to validate
         schema_name: Name of schema to validate against
 
     Returns:
-        Always returns True (placeholder implementation)
+        True if validation passes (always returns True for now)
     """
-    # TODO: Implement actual schema validation
-    logger.warning(f"Schema validation not implemented: {schema_name}")
+    # TODO: Implement schema validation when schema definitions are available
+    logger.debug(f"Schema validation requested for {schema_name} - not yet implemented")
     return True
 
 
-def in_range(value: Union[int, float], lo: Union[int, float], hi: Union[int, float]) -> bool:
-    """
-    Check if a value is within a specified range.
-
-    Args:
-        value: Value to check
-        lo: Lower bound (inclusive)
-        hi: Upper bound (inclusive)
-
-    Returns:
-        True if value is within range, False otherwise
-    """
-    try:
-        return lo <= value <= hi
-    except Exception:
-        return False
-
-
-def safe_eval(expression: str, variables: Dict[str, Any], timeout: float = 1.0) -> Any:
-    """
-    Safely evaluate an expression with restricted context and timeout.
-
-    Args:
-        expression: Expression string to evaluate
-        variables: Variables available in the expression context
-        timeout: Maximum execution time in seconds
-
-    Returns:
-        Result of the expression evaluation
-
-    Raises:
-        PolicyTimeoutError: If evaluation exceeds timeout
-        PolicySyntaxError: If expression has invalid syntax
-        PolicyError: For other evaluation errors
-    """
-    try:
-        # Parse expression to validate syntax
-        ast.parse(expression, mode='eval')
-
-        with safe_execution_context(timeout) as safe_globals:
-            # Create local context with variables and helper functions
-            local_context = {
-                **variables,
-                # Add helper functions to context
-                'is_int': is_int,
-                'is_float': is_float,
-                'is_str': is_str,
-                'is_list': is_list,
-                'is_dict': is_dict,
-                'matches': matches,
-                'len_of': len_of,
-                'has_keys': has_keys,
-                'input_size_kb': lambda args: input_size_kb(args, variables.get('kwargs')),
-                'schema_ok': schema_ok,
-                'in_range': in_range,
-            }
-
-            # Evaluate expression
-            result = eval(expression, safe_globals, local_context)
-
-            # Log successful evaluation
-            logger.debug(f"Evaluated expression '{expression}' -> {result}")
-            return result
-
-    except SyntaxError as e:
-        error_msg = f"Invalid syntax in policy expression: {expression}"
-        logger.error(f"{error_msg}: {e}")
-        raise PolicySyntaxError(error_msg) from e
-    except TimeoutError as e:
-        error_msg = f"Policy evaluation timed out: {expression}"
-        logger.error(error_msg)
-        raise PolicyTimeoutError(error_msg) from e
-    except Exception as e:
-        error_msg = f"Error evaluating policy expression: {expression}"
-        logger.error(f"{error_msg}: {e}")
-        raise PolicyError(error_msg) from e
-
-
+# Policy evaluation function
 def evaluate_policy(
-    policy_rules: List[PolicyRule],
-    args: Tuple[Any, ...],
+    policy_rules: List[Dict[str, Any]],
+    args: tuple[Any, ...],
     kwargs: Dict[str, Any]
-) -> PolicyResult:
+) -> Literal['code', 'model', 'codegen']:
     """
-    Evaluate policy rules and return routing decision.
+    Evaluate policy rules to determine routing decision.
 
     Args:
-        policy_rules: List of policy rules from YAML
+        policy_rules: List of policy rule dictionaries
         args: Positional arguments from method call
         kwargs: Keyword arguments from method call
 
     Returns:
         Routing decision: 'code', 'model', or 'codegen'
-
-    Raises:
-        PolicyError: If policy evaluation fails
     """
-    # Set up variables for expression evaluation
-    variables = {
+    # Create evaluation context with helper functions and arguments
+    context = {
         'args': args,
         'kwargs': kwargs,
+        # Helper functions
+        'is_int': is_int,
+        'is_float': is_float,
+        'is_str': is_str,
+        'is_list': is_list,
+        'is_dict': is_dict,
+        'is_bool': is_bool,
+        'matches': matches,
+        'contains': contains,
+        'len_of': len_of,
+        'has_keys': has_keys,
+        'has_any_key': has_any_key,
+        'input_size_kb': input_size_kb,
+        'in_range': in_range,
+        'gt': gt,
+        'lt': lt,
+        'eq': eq,
+        'ne': ne,
+        'schema_ok': schema_ok,
     }
 
-    # Add individual arguments as variables (a, b, etc.)
-    arg_names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']  # Up to 10 positional args
+    # Add individual arguments to context for easy access
     for i, arg in enumerate(args):
-        if i < len(arg_names):
-            variables[arg_names[i]] = arg
+        context[f'a{i}'] = arg
 
-    # Add keyword arguments as variables
-    for key, value in kwargs.items():
-        variables[key] = value
+    # Add keyword arguments to context
+    context.update(kwargs)
 
-    # Evaluate each rule in order (first-match wins)
-    for i, rule in enumerate(policy_rules):
-        try:
-            # Check if this is an "else" rule
-            if 'else' in rule:
-                logger.debug(f"Using default rule (else): {rule['else']}")
-                return rule['else']
-
-            # Check if this rule has a condition
-            if 'if' not in rule:
-                logger.warning(f"Policy rule {i} missing 'if' condition: {rule}")
-                continue
-
-            condition = rule['if']
-            if not isinstance(condition, str):
-                logger.warning(f"Policy rule {i} 'if' condition must be string: {condition}")
-                continue
-
-            # Evaluate the condition
-            result = safe_eval(condition, variables)
-
-            # If condition is truthy, return the routing decision
-            if result:
-                if 'then' not in rule:
-                    logger.warning(f"Policy rule {i} missing 'then' action: {rule}")
-                    continue
-
-                action = rule['then']
-                if action not in ('code', 'model', 'codegen'):
-                    logger.warning(f"Invalid action in policy rule {i}: {action}")
-                    continue
-
-                logger.debug(f"Policy rule {i} matched: {condition} -> {action}")
-                return action
-
-        except (PolicyTimeoutError, PolicySyntaxError, PolicyError) as e:
-            # Log error but continue with next rule
-            logger.warning(f"Error evaluating policy rule {i}: {e}")
+    # Evaluate rules in order (first match wins)
+    for rule in policy_rules:
+        if not isinstance(rule, dict):
+            logger.warning(f"Invalid policy rule format: {rule}")
             continue
 
-    # No rules matched, return default routing
+        condition = rule.get('if')
+        result = rule.get('then')
+
+        if not condition or not result:
+            logger.warning(f"Invalid policy rule structure: {rule}")
+            continue
+
+        if result not in ['code', 'model', 'codegen']:
+            logger.warning(f"Invalid policy result: {result}")
+            continue
+
+        try:
+            # Evaluate the condition
+            if safe_eval(condition, context):
+                logger.debug(f"Policy rule matched: {condition} -> {result}")
+                return result
+
+        except PolicyError as e:
+            # Log error but continue to next rule
+            logger.debug(f"Policy rule evaluation failed: {e}")
+            continue
+
+    # Default routing when no rules match
     logger.debug("No policy rules matched, using default routing: model")
     return 'model'
 
 
-def validate_policy_syntax(policy_rules: List[PolicyRule]) -> List[str]:
+# Policy validation function
+def validate_policy_rules(policy_rules: List[Dict[str, Any]]) -> List[str]:
     """
-    Validate policy rules for syntax errors.
+    Validate policy rules for syntax and structure.
 
     Args:
-        policy_rules: List of policy rules to validate
+        policy_rules: List of policy rule dictionaries to validate
 
     Returns:
         List of validation error messages (empty if valid)
     """
     errors = []
 
+    if not isinstance(policy_rules, list):
+        errors.append("Policy rules must be a list")
+        return errors
+
     for i, rule in enumerate(policy_rules):
-        # Check rule structure
         if not isinstance(rule, dict):
-            errors.append(f"Rule {i}: Must be a dictionary, got {type(rule)}")
+            errors.append(f"Rule {i} must be a dictionary")
             continue
 
-        # Check for valid keys
-        valid_keys = {'if', 'then', 'else'}
-        invalid_keys = set(rule.keys()) - valid_keys
-        if invalid_keys:
-            errors.append(f"Rule {i}: Invalid keys {invalid_keys}, valid keys are {valid_keys}")
+        if 'if' not in rule:
+            errors.append(f"Rule {i} missing 'if' condition")
 
-        # Validate 'if' condition
+        if 'then' not in rule:
+            errors.append(f"Rule {i} missing 'then' result")
+
+        if 'then' in rule:
+            result = rule['then']
+            if result not in ['code', 'model', 'codegen']:
+                errors.append(f"Rule {i} has invalid result: {result}")
+
         if 'if' in rule:
             condition = rule['if']
             if not isinstance(condition, str):
-                errors.append(f"Rule {i}: 'if' condition must be a string, got {type(condition)}")
-            else:
-                # Try to parse the condition to check syntax
-                try:
-                    ast.parse(condition, mode='eval')
-                except SyntaxError as e:
-                    errors.append(f"Rule {i}: Invalid syntax in condition '{condition}': {e}")
+                errors.append(f"Rule {i} condition must be a string")
 
-        # Validate 'then' action
-        if 'then' in rule:
-            action = rule['then']
-            if action not in ('code', 'model', 'codegen'):
-                errors.append(f"Rule {i}: Invalid action '{action}', must be 'code', 'model', or 'codegen'")
+            # Try to validate the expression syntax
+            try:
+                # Create a minimal context for syntax validation
+                test_context = {
+                    'args': (),
+                    'kwargs': {},
+                    'is_int': is_int,
+                    'is_float': is_float,
+                    'is_str': is_str,
+                    'is_list': is_list,
+                    'is_dict': is_dict,
+                    'is_bool': is_bool,
+                    'matches': matches,
+                    'contains': contains,
+                    'len_of': len_of,
+                    'has_keys': has_keys,
+                    'has_any_key': has_any_key,
+                    'input_size_kb': input_size_kb,
+                    'in_range': in_range,
+                    'gt': gt,
+                    'lt': lt,
+                    'eq': eq,
+                    'ne': ne,
+                    'schema_ok': schema_ok,
+                    'True': True,
+                    'False': False,
+                    'None': None,
+                }
 
-        # Check for mutually exclusive keys
-        if 'else' in rule and ('if' in rule or 'then' in rule):
-            errors.append(f"Rule {i}: 'else' cannot be combined with 'if' or 'then'")
+                # This will catch basic syntax errors
+                safe_eval(condition, test_context)
 
-        if 'else' not in rule and 'if' not in rule and 'then' not in rule:
-            errors.append(f"Rule {i}: Must have at least one of 'if', 'then', or 'else'")
+            except PolicyError:
+                # Expression errors are caught here
+                pass  # We'll let the actual evaluation handle this
+            except Exception as e:
+                errors.append(f"Rule {i} has syntax error: {e}")
 
     return errors

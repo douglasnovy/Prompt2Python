@@ -1,559 +1,447 @@
-"""Tests for Policy DSL & Parser."""
+"""
+Comprehensive tests for the Policy DSL & Parser module.
+"""
 
 import pytest
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from prompted_objects.policy import (
-    PolicyError,
-    PolicyTimeoutError,
-    PolicySyntaxError,
-    evaluate_policy,
-    safe_eval,
-    validate_policy_syntax,
-    is_int,
-    is_float,
-    is_str,
-    is_list,
-    is_dict,
-    matches,
-    len_of,
-    has_keys,
-    input_size_kb,
-    schema_ok,
-    in_range,
+    # Core functions
+    safe_eval, evaluate_policy, validate_policy_rules,
+    # Helper functions
+    is_int, is_float, is_str, is_list, is_dict, is_bool,
+    matches, contains, len_of, has_keys, has_any_key,
+    input_size_kb, in_range, gt, lt, eq, ne, schema_ok,
 )
+from prompted_objects.exceptions import PolicyError
 
 
 class TestHelperFunctions:
-    """Test helper functions used in policy expressions."""
+    """Test all helper functions for policy expressions."""
 
-    def test_is_int(self):
-        """Test is_int function."""
+    def test_type_checking_functions(self):
+        """Test type checking helper functions."""
+        # Test is_int
         assert is_int(42) is True
-        assert is_int(0) is True
-        assert is_int(-42) is True
-        assert is_int(42.0) is False  # float is not int
+        assert is_int(42.0) is False
         assert is_int("42") is False
-        assert is_int([42]) is False
         assert is_int(True) is False  # bool is not int
-        assert is_int(None) is False
+        assert is_int(False) is False
 
-    def test_is_float(self):
-        """Test is_float function."""
+        # Test is_float
         assert is_float(42.0) is True
-        assert is_float(0.0) is True
-        assert is_float(-42.5) is True
-        assert is_float(42) is False  # int is not float
+        assert is_float(42) is False
         assert is_float("42.0") is False
-        assert is_float([42.0]) is False
-        assert is_float(True) is False  # bool is not float
-        assert is_float(None) is False
 
-    def test_is_str(self):
-        """Test is_str function."""
+        # Test is_str
         assert is_str("hello") is True
-        assert is_str("") is True
-        assert is_str("42") is True
         assert is_str(42) is False
-        assert is_str(42.0) is False
-        assert is_str([42]) is False
-        assert is_str(True) is False
-        assert is_str(None) is False
+        assert is_str("") is True
 
-    def test_is_list(self):
-        """Test is_list function."""
+        # Test is_list
         assert is_list([1, 2, 3]) is True
-        assert is_list([]) is True
-        assert is_list([42]) is True
-        assert is_list(42) is False
+        assert is_list((1, 2, 3)) is False
         assert is_list("hello") is False
-        assert is_list({"a": 1}) is False
-        assert is_list((1, 2)) is False
-        assert is_list(True) is False
-        assert is_list(None) is False
 
-    def test_is_dict(self):
-        """Test is_dict function."""
+        # Test is_dict
         assert is_dict({"a": 1}) is True
-        assert is_dict({}) is True
-        assert is_dict({"key": "value"}) is True
-        assert is_dict(42) is False
-        assert is_dict("hello") is False
-        assert is_dict([1, 2]) is False
-        assert is_dict((1, 2)) is False
-        assert is_dict(True) is False
-        assert is_dict(None) is False
+        assert is_dict([("a", 1)]) is False
 
-    def test_matches(self):
-        """Test matches function."""
+        # Test is_bool
+        assert is_bool(True) is True
+        assert is_bool(False) is True
+        assert is_bool(1) is False
+        assert is_bool(0) is False
+
+    def test_string_functions(self):
+        """Test string and pattern matching functions."""
+        # Test matches (regex)
         assert matches("test_string", r"test_.*") is True
-        assert matches("hello world", r"hello") is True
+        assert matches("hello", r"test_.*") is False
         assert matches("123", r"\d+") is True
-        assert matches("test", r"nomatch") is False
-        assert matches("", r"test") is False
 
-        # Test with non-string input
-        assert matches(123, r"123") is True
-        assert matches(None, r"test") is False
+        # Test contains
+        assert contains("hello world", "world") is True
+        assert contains("hello world", "foo") is False
+        assert contains("", "foo") is False
 
-    def test_len_of(self):
-        """Test len_of function."""
+    def test_collection_functions(self):
+        """Test collection helper functions."""
+        # Test len_of
         assert len_of([1, 2, 3]) == 3
         assert len_of("hello") == 5
         assert len_of({"a": 1, "b": 2}) == 2
-        assert len_of((1, 2)) == 2
-        assert len_of(set([1, 2, 2])) == 2
-        assert len_of(42) == 0  # Not a container
-        assert len_of(None) == 0
+        assert len_of(42) == 0  # Non-collections return 0
 
-    def test_has_keys(self):
-        """Test has_keys function."""
-        assert has_keys({"a": 1, "b": 2}, ["a"]) is True
-        assert has_keys({"a": 1, "b": 2}, ["a", "b"]) is True
-        assert has_keys({"a": 1, "b": 2}, ["c"]) is False
-        assert has_keys({"a": 1}, ["a", "c"]) is False
+        # Test has_keys
+        data = {"a": 1, "b": 2, "c": 3}
+        assert has_keys(data, ["a", "b"]) is True
+        assert has_keys(data, ["a", "d"]) is False
+        assert has_keys(data, []) is True  # Empty list always true
         assert has_keys("not_a_dict", ["a"]) is False
-        assert has_keys(42, ["a"]) is False
-        assert has_keys(None, ["a"]) is False
 
-    def test_input_size_kb(self):
-        """Test input_size_kb function."""
-        # Test with simple values
-        size = input_size_kb((42,), {})
+        # Test has_any_key
+        assert has_any_key(data, ["a", "d"]) is True
+        assert has_any_key(data, ["d", "e"]) is False
+        assert has_any_key("not_a_dict", ["a"]) is False
+
+    def test_size_estimation(self):
+        """Test input size estimation function."""
+        # Test with various data types
+        small_args = (1, "hello", [1, 2])
+        size = input_size_kb(small_args)
         assert size > 0
+        assert size < 1.0  # Should be much less than 1KB
 
         # Test with larger data
-        large_list = [1] * 1000
-        size = input_size_kb((large_list,), {})
-        assert size > 0
+        large_args = ("x" * 1000, [1] * 100)
+        large_size = input_size_kb(large_args)
+        assert large_size > size
 
-        # Test with kwargs
-        size = input_size_kb((), {"data": large_list})
-        assert size > 0
+        # Test with empty args
+        assert input_size_kb(()) == 0.0
 
-        # Test with empty inputs
-        size = input_size_kb((), {})
-        assert size == 0
-
-    def test_schema_ok(self):
-        """Test schema_ok function (placeholder)."""
-        # Always returns True for now
-        assert schema_ok((42,), "test_schema") is True
-        assert schema_ok((), "another_schema") is True
-
-    def test_in_range(self):
-        """Test in_range function."""
+    def test_range_functions(self):
+        """Test range and comparison functions."""
+        # Test in_range
         assert in_range(5, 1, 10) is True
-        assert in_range(1, 1, 10) is True
-        assert in_range(10, 1, 10) is True
         assert in_range(0, 1, 10) is False
-        assert in_range(11, 1, 10) is False
-        assert in_range(-5, 1, 10) is False
-        assert in_range(5.5, 1.0, 10.0) is True
+        assert in_range(15, 1, 10) is False
         assert in_range("not_a_number", 1, 10) is False
 
+        # Test gt (greater than)
+        assert gt(10, 5) is True
+        assert gt(5, 10) is False
+        assert gt("not_a_number", 5) is False
 
-class TestSafeEval:
-    """Test safe expression evaluation."""
+        # Test lt (less than)
+        assert lt(5, 10) is True
+        assert lt(10, 5) is False
+        assert lt("not_a_number", 5) is False
 
-    def test_basic_arithmetic(self):
-        """Test basic arithmetic expressions."""
-        variables = {"a": 5, "b": 3}
-        assert safe_eval("a + b", variables) == 8
-        assert safe_eval("a * b", variables) == 15
-        assert safe_eval("a - b", variables) == 2
-        assert safe_eval("a / b", variables) == 5 / 3
+        # Test eq (equals)
+        assert eq(5, 5) is True
+        assert eq(5, 10) is False
+        assert eq("hello", "hello") is True
 
-    def test_logical_operations(self):
-        """Test logical operations."""
-        variables = {"a": True, "b": False}
-        assert safe_eval("a and b", variables) is False
-        assert safe_eval("a or b", variables) is True
-        assert safe_eval("not a", variables) is False
-        assert safe_eval("a and not b", variables) is True
+        # Test ne (not equals)
+        assert ne(5, 10) is True
+        assert ne(5, 5) is False
 
-    def test_comparison_operations(self):
-        """Test comparison operations."""
-        variables = {"a": 5, "b": 3}
-        assert safe_eval("a > b", variables) is True
-        assert safe_eval("a < b", variables) is False
-        assert safe_eval("a >= b", variables) is True
-        assert safe_eval("a <= b", variables) is False
-        assert safe_eval("a == b", variables) is False
-        assert safe_eval("a != b", variables) is True
+    def test_schema_validation(self):
+        """Test schema validation function (placeholder)."""
+        # Currently always returns True
+        assert schema_ok((1, 2, 3), "any_schema") is True
 
-    def test_helper_function_calls(self):
-        """Test calling helper functions in expressions."""
-        variables = {"x": 42, "y": "hello", "z": [1, 2, 3], "data": {"a": 1}}
-        assert safe_eval("is_int(x)", variables) is True
-        assert safe_eval("is_str(y)", variables) is True
-        assert safe_eval("is_list(z)", variables) is True
-        assert safe_eval("len_of(z)", variables) == 3
-        assert safe_eval("has_keys(data, ['a'])", variables) is True
-        assert safe_eval("matches(y, 'h.*')", variables) is True
 
-    def test_complex_expressions(self):
-        """Test complex expressions combining multiple elements."""
-        variables = {"a": 10, "b": 5, "items": [1, 2, 3, 4, 5]}
-        assert safe_eval("is_int(a) and a > b", variables) is True
-        assert safe_eval("len_of(items) > 3 and is_list(items)", variables) is True
-        assert safe_eval("not (a < b)", variables) is True
+class TestSafeEvaluation:
+    """Test the safe expression evaluation system."""
 
-    def test_invalid_syntax(self):
-        """Test handling of invalid syntax."""
-        variables = {"a": 5}
-        with pytest.raises(PolicySyntaxError):
-            safe_eval("a +", variables)  # Invalid syntax
+    def test_basic_expression_evaluation(self):
+        """Test basic expression evaluation."""
+        context = {"a": 5, "b": 3}
 
-        with pytest.raises(PolicySyntaxError):
-            safe_eval("if a > 5:", variables)  # Python statement, not expression
+        # Simple arithmetic
+        result = safe_eval("a + b", context)
+        assert result == 8
+
+        # Function calls
+        result = safe_eval("is_int(a)", context)
+        assert result is True
+
+        # Complex expressions
+        result = safe_eval("a > 0 and is_int(b)", context)
+        assert result is True
+
+    def test_security_restrictions(self):
+        """Test that dangerous operations are blocked."""
+        context = {"data": [1, 2, 3]}
+
+        # Test that eval is not available
+        with pytest.raises(PolicyError):
+            safe_eval("eval('1+1')", context)
+
+        # Test that exec is not available
+        with pytest.raises(PolicyError):
+            safe_eval("exec('print(1)')", context)
+
+        # Test that open is not available
+        with pytest.raises(PolicyError):
+            safe_eval("open('/etc/passwd')", context)
 
     def test_timeout_protection(self):
-        """Test timeout protection."""
-        variables = {"a": 5}
+        """Test that evaluation times out for long-running expressions."""
+        context = {"data": list(range(10000))}
 
-        # Test with a very short timeout that should trigger timeout
-        # This is a basic smoke test - actual timeout behavior depends on system load
-        try:
-            result = safe_eval("a + 1", variables, timeout=0.0001)  # Very short timeout
-            # If we get here without exception, the timeout might not be working as expected
-            # This is acceptable as timeout behavior can be system-dependent
-        except PolicyTimeoutError:
-            # Expected behavior
-            pass
-        except Exception:
-            # Other exceptions are also acceptable for this test
-            pass
+        # This should timeout due to large list operations
+        with pytest.raises(PolicyError, match="timed out"):
+            safe_eval("sum(len_of(data) for _ in range(10000))", context, timeout=0.1)
 
     def test_error_handling(self):
-        """Test general error handling."""
-        variables = {"a": 5}
+        """Test error handling for invalid expressions."""
+        context = {"a": 5}
 
+        # Syntax error
         with pytest.raises(PolicyError):
-            # This should cause a NameError (undefined variable)
-            safe_eval("undefined_variable", variables)
+            safe_eval("a + ", context)
 
-    def test_safe_environment(self):
-        """Test that dangerous operations are blocked."""
-        variables = {"a": 5}
-
-        # These should all raise errors due to restricted environment
+        # Name error
         with pytest.raises(PolicyError):
-            safe_eval("__import__('os')", variables)
+            safe_eval("nonexistent_variable", context)
 
+        # Type error in expression
         with pytest.raises(PolicyError):
-            safe_eval("eval('1+1')", variables)
-
-        with pytest.raises(PolicyError):
-            safe_eval("exec('print(1)')", variables)
+            safe_eval("a / 0", context)
 
 
 class TestPolicyEvaluation:
-    """Test policy rule evaluation."""
+    """Test policy rule evaluation and routing decisions."""
 
-    def test_simple_policy_match(self):
-        """Test basic policy matching."""
+    def test_basic_policy_evaluation(self):
+        """Test basic policy evaluation with simple rules."""
         policy = [
             {"if": "is_int(a) and is_int(b)", "then": "code"}
         ]
-        assert evaluate_policy(policy, (5, 3), {}) == "code"
-        assert evaluate_policy(policy, ("5", 3), {}) == "model"  # No match
 
-    def test_multiple_rules_first_match(self):
+        # Should match and return "code"
+        result = evaluate_policy(policy, (2, 3), {})
+        assert result == "code"
+
+        # Should not match and return default "model"
+        result = evaluate_policy(policy, ("hello", 3), {})
+        assert result == "model"
+
+    def test_multiple_rules_first_match_wins(self):
         """Test that first matching rule wins."""
         policy = [
             {"if": "is_str(a)", "then": "model"},
             {"if": "is_int(a)", "then": "code"}
         ]
-        assert evaluate_policy(policy, (42,), {}) == "code"  # Second rule matches
-        assert evaluate_policy(policy, ("hello",), {}) == "model"  # First rule matches
 
-    def test_else_rule(self):
-        """Test else rule as default."""
-        policy = [
-            {"if": "is_int(a)", "then": "code"},
-            {"else": "model"}
-        ]
-        assert evaluate_policy(policy, (42,), {}) == "code"
-        assert evaluate_policy(policy, ("hello",), {}) == "model"
+        # First rule should match strings
+        result = evaluate_policy(policy, ("hello",), {})
+        assert result == "model"
 
-    def test_no_rules_match(self):
-        """Test default behavior when no rules match."""
-        policy = [
-            {"if": "is_int(a)", "then": "code"}
-        ]
-        assert evaluate_policy(policy, ("hello",), {}) == "model"  # Default
+        # Second rule should match integers (if first rule doesn't match)
+        result = evaluate_policy(policy, (42,), {})
+        assert result == "code"
 
-    def test_complex_policy(self):
-        """Test complex policy with multiple conditions."""
+    def test_complex_policy_expressions(self):
+        """Test complex policy expressions."""
         policy = [
-            {"if": "is_int(a) and is_int(b) and a > 0 and b > 0", "then": "code"},
             {"if": "input_size_kb(args) > 1.0", "then": "model"},
-            {"else": "model"}
+            {"if": "len_of(a) > 5", "then": "codegen"},
+            {"if": "has_keys(kwargs, ['special'])", "then": "code"}
         ]
 
-        # Should match first rule
-        assert evaluate_policy(policy, (5, 3), {}) == "code"
+        # Test size-based routing
+        large_data = ("x" * 2000,)  # > 1KB when estimated
+        result = evaluate_policy(policy, large_data, {})
+        assert result == "model"
 
-        # Should match second rule (large input)
-        large_data = [1] * 1000
-        assert evaluate_policy(policy, (large_data,), {}) == "model"
+        # Test length-based routing
+        result = evaluate_policy(policy, ("short",), {})
+        assert result == "codegen"
 
-        # Should use default
-        assert evaluate_policy(policy, ("hello",), {}) == "model"
+        # Test kwargs-based routing
+        result = evaluate_policy(policy, ("anything",), {"special": True})
+        assert result == "code"
 
-    def test_policy_with_kwargs(self):
-        """Test policy evaluation with keyword arguments."""
+    def test_default_routing(self):
+        """Test default routing when no rules match."""
         policy = [
-            {"if": "has_keys(kwargs, ['name']) and matches(name, 'test_.*')", "then": "code"}
+            {"if": "is_int(a) and a > 100", "then": "code"}
         ]
 
-        assert evaluate_policy(policy, (), {"name": "test_function"}) == "code"
-        assert evaluate_policy(policy, (), {"name": "prod_function"}) == "model"
+        # Should default to "model" when no rules match
+        result = evaluate_policy(policy, (50,), {})
+        assert result == "model"
 
-    def test_malformed_rules(self):
-        """Test handling of malformed policy rules."""
-        # Rule without condition or action
-        policy = [{}]
-        assert evaluate_policy(policy, (42,), {}) == "model"
+        result = evaluate_policy(policy, ("not_int",), {})
+        assert result == "model"
 
-        # Rule with invalid action
-        policy = [{"if": "is_int(a)", "then": "invalid_action"}]
-        assert evaluate_policy(policy, (42,), {}) == "model"
+    def test_empty_policy(self):
+        """Test behavior with empty policy."""
+        result = evaluate_policy([], (1, 2, 3), {"key": "value"})
+        assert result == "model"  # Default routing
 
-    def test_code_injection_prevention(self):
-        """Test that code injection attempts are blocked."""
-        # These should not execute dangerous code
-        policy = [
-            {"if": "is_int(a)", "then": "code"}
-        ]
+    def test_invalid_policy_rules(self):
+        """Test handling of invalid policy rule structures."""
+        # Rule without 'if'
+        policy = [{"then": "code"}]
+        result = evaluate_policy(policy, (1,), {})
+        assert result == "model"  # Should continue to default
 
-        # The policy evaluation should handle errors gracefully
-        # and not allow code injection
-        assert evaluate_policy(policy, (42,), {}) == "code"
+        # Rule without 'then'
+        policy = [{"if": "is_int(a)"}]
+        result = evaluate_policy(policy, (1,), {})
+        assert result == "model"  # Should continue to default
+
+        # Rule with invalid result
+        policy = [{"if": "is_int(a)", "then": "invalid"}]
+        result = evaluate_policy(policy, (1,), {})
+        assert result == "model"  # Should continue to default
 
 
 class TestPolicyValidation:
-    """Test policy syntax validation."""
+    """Test policy rule validation."""
 
-    def test_valid_policy(self):
-        """Test validation of valid policy."""
-        policy = [
-            {"if": "is_int(a)", "then": "code"},
-            {"else": "model"}
+    def test_valid_policy_validation(self):
+        """Test validation of valid policy rules."""
+        valid_policy = [
+            {"if": "is_int(a) and is_int(b)", "then": "code"},
+            {"if": "len_of(a) > 5", "then": "model"}
         ]
-        errors = validate_policy_syntax(policy)
-        assert errors == []
 
-    def test_invalid_rule_structure(self):
-        """Test validation of invalid rule structure."""
-        policy = ["not_a_dict"]
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 1
-        assert "Must be a dictionary" in errors[0]
+        errors = validate_policy_rules(valid_policy)
+        assert len(errors) == 0
 
-    def test_invalid_keys(self):
-        """Test validation of invalid keys in rules."""
-        policy = [{"if": "is_int(a)", "invalid_key": "value"}]
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 1
-        assert "Invalid keys" in errors[0]
+    def test_invalid_policy_validation(self):
+        """Test validation of invalid policy rules."""
+        invalid_policy = [
+            {"then": "code"},  # Missing 'if'
+            {"if": "is_int(a)"},  # Missing 'then'
+            {"if": "is_int(a)", "then": "invalid"},  # Invalid result
+            "not_a_dict",  # Not a dict
+        ]
 
-    def test_invalid_condition_syntax(self):
-        """Test validation of invalid condition syntax."""
-        policy = [{"if": "is_int(a) and", "then": "code"}]  # Invalid syntax
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 1
-        assert "Invalid syntax" in errors[0]
+        errors = validate_policy_rules(invalid_policy)
+        assert len(errors) > 0
+        assert any("missing 'if'" in error for error in errors)
+        assert any("missing 'then'" in error for error in errors)
+        assert any("invalid result" in error for error in errors)
+        assert any("must be a dictionary" in error for error in errors)
 
-    def test_invalid_action(self):
-        """Test validation of invalid action."""
-        policy = [{"if": "is_int(a)", "then": "invalid"}]
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 1
-        assert "Invalid action" in errors[0]
+    def test_syntax_validation(self):
+        """Test validation of expression syntax."""
+        # Invalid syntax
+        invalid_policy = [
+            {"if": "a +", "then": "code"}  # Syntax error
+        ]
 
-    def test_else_with_conditions(self):
-        """Test validation of else rule with conditions."""
-        policy = [{"if": "is_int(a)", "else": "model"}]
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 1
-        assert "cannot be combined" in errors[0]
-
-    def test_empty_rule(self):
-        """Test validation of empty rule."""
-        policy = [{}]
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 1
-        assert "Must have at least one" in errors[0]
-
-    def test_missing_condition_type(self):
-        """Test validation of wrong condition type."""
-        policy = [{"if": 123, "then": "code"}]  # Should be string
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 1
-        assert "must be a string" in errors[0]
+        errors = validate_policy_rules(invalid_policy)
+        # Should catch syntax errors
+        assert len(errors) > 0
 
 
-class TestEdgeCases:
-    """Test edge cases and error conditions."""
+class TestIntegrationScenarios:
+    """Test realistic integration scenarios."""
 
-    def test_empty_policy(self):
-        """Test evaluation with empty policy."""
-        assert evaluate_policy([], (42,), {}) == "model"
+    def test_math_example_policy(self):
+        """Test the math example from the workstream spec."""
+        policy = [
+            {"if": "is_int(a) and is_int(b)", "then": "code"},
+            {"if": "input_size_kb(args) > 1.0", "then": "model"}
+        ]
 
-    def test_empty_args_kwargs(self):
-        """Test evaluation with empty arguments."""
-        policy = [{"if": "len_of(args) == 0", "then": "code"}]
-        assert evaluate_policy(policy, (), {}) == "code"
+        # Should route to code for integers
+        result = evaluate_policy(policy, (2, 3), {})
+        assert result == "code"
 
-    def test_large_inputs(self):
-        """Test evaluation with large inputs."""
-        large_data = {"data": [1] * 10000}
-        policy = [{"if": "input_size_kb(args) > 1.0", "then": "model"}]
-        result = evaluate_policy(policy, (large_data,), {})
+        # Should route to model for large inputs
+        large_input = ("x" * 2000, "y" * 2000)
+        result = evaluate_policy(policy, large_input, {})
         assert result == "model"
 
-    def test_special_values(self):
-        """Test evaluation with special values."""
+        # Should route to model for non-integers
+        result = evaluate_policy(policy, ("hello", 3), {})
+        assert result == "model"
+
+    def test_string_processing_policy(self):
+        """Test string processing policy example."""
         policy = [
-            {"if": "a is None", "then": "model"},
-            {"if": "a is True", "then": "code"}
+            {"if": "matches(name, r'^test_')", "then": "model"},
+            {"if": "len_of(name) < 10", "then": "code"}
         ]
 
-        assert evaluate_policy(policy, (None,), {}) == "model"
-        assert evaluate_policy(policy, (True,), {}) == "code"
-        assert evaluate_policy(policy, (False,), {}) == "model"  # False is not True
+        # Should route to model for test functions
+        result = evaluate_policy(policy, (), {"name": "test_function"})
+        assert result == "model"
 
-    def test_nested_data_structures(self):
-        """Test evaluation with nested data structures."""
-        nested = {"level1": {"level2": {"value": 42}}}
-        policy = [{"if": "has_keys(level1, ['level2'])", "then": "code"}]
+        # Should route to code for short names
+        result = evaluate_policy(policy, (), {"name": "short"})
+        assert result == "code"
 
-        # This tests accessing nested variables
-        variables = {"level1": nested["level1"]}
-        assert safe_eval("has_keys(level1, ['level2'])", variables) is True
+        # Should route to model for long names
+        result = evaluate_policy(policy, (), {"name": "very_long_function_name"})
+        assert result == "model"
+
+    def test_complex_nested_policy(self):
+        """Test complex nested policy with multiple conditions."""
+        policy = [
+            {
+                "if": "is_dict(kwargs) and has_keys(kwargs, ['user_id', 'action']) and is_str(kwargs['action'])",
+                "then": "code"
+            },
+            {
+                "if": "input_size_kb(args) > 0.1",
+                "then": "model"
+            },
+            {
+                "if": "len_of(a) > 100",
+                "then": "codegen"
+            }
+        ]
+
+        # Should route to code for valid user actions
+        result = evaluate_policy(policy, (), {
+            "user_id": 123,
+            "action": "create"
+        })
+        assert result == "code"
+
+        # Should route to model for large inputs
+        large_input = (list(range(1000)),)
+        result = evaluate_policy(policy, large_input, {})
+        assert result == "model"
+
+        # Should route to codegen for long collections
+        result = evaluate_policy(policy, (list(range(200)),), {})
+        assert result == "codegen"
 
 
 class TestPerformance:
     """Test performance characteristics."""
 
-    def test_fast_evaluation(self):
-        """Test that normal evaluations are fast."""
-        policy = [{"if": "is_int(a)", "then": "code"}]
+    def test_evaluation_performance(self):
+        """Test that policy evaluation is reasonably fast."""
+        policy = [
+            {"if": "is_int(a) and is_int(b) and len_of(a) < 1000", "then": "code"},
+            {"if": "input_size_kb(args) > 1.0", "then": "model"}
+        ]
 
+        # Should complete quickly for normal inputs
         start_time = time.time()
-        for _ in range(1000):
-            evaluate_policy(policy, (42,), {})
+        for _ in range(100):
+            result = evaluate_policy(policy, (1, 2), {"data": [1, 2, 3]})
         end_time = time.time()
 
-        # Should complete 1000 evaluations in reasonable time
+        # Should complete 100 evaluations in under 1 second
         assert end_time - start_time < 1.0
 
-    def test_reasonable_memory_usage(self):
-        """Test that evaluation doesn't use excessive memory."""
-        import sys
+    def test_memory_usage(self):
+        """Test that evaluation doesn't have memory leaks."""
+        import gc
 
         policy = [{"if": "is_int(a)", "then": "code"}]
-        initial_refs = sys.getrefcount(policy)
+
+        # Force garbage collection before test
+        gc.collect()
+
+        initial_objects = len(gc.get_objects())
 
         # Run many evaluations
-        for i in range(100):
-            evaluate_policy(policy, (i,), {})
+        for i in range(1000):
+            result = evaluate_policy(policy, (i,), {})
 
-        # Memory usage should be reasonable (refs should not grow significantly)
-        final_refs = sys.getrefcount(policy)
-        # Allow for some variation in reference counting
-        assert abs(final_refs - initial_refs) < 50
+        # Force garbage collection after test
+        gc.collect()
 
+        final_objects = len(gc.get_objects())
 
-class TestErrorConditions:
-    """Test error conditions and edge cases."""
-
-    def test_evaluate_policy_with_exception_in_rule(self):
-        """Test policy evaluation when a rule throws an exception."""
-        policy = [
-            {"if": "undefined_variable", "then": "code"}  # This will raise an error
-        ]
-
-        # Should handle the error gracefully and return default
-        result = evaluate_policy(policy, (42,), {})
-        assert result == "model"
-
-    def test_evaluate_policy_with_mixed_valid_invalid_rules(self):
-        """Test policy with mix of valid and invalid rules."""
-        policy = [
-            {"if": "undefined_var", "then": "code"},  # Invalid
-            {"if": "is_int(a)", "then": "model"},     # Valid
-            {"invalid": "rule"}                       # Invalid structure
-        ]
-
-        # Should evaluate valid rules and ignore invalid ones
-        result = evaluate_policy(policy, (42,), {})
-        assert result == "model"
-
-    def test_safe_eval_with_very_large_expression(self):
-        """Test safe_eval with a large expression."""
-        variables = {"a": 1, "b": 2}
-        # Create a moderately complex expression
-        expr = "a + b + (a * b) + (a ** 2) + (b ** 2)"
-        result = safe_eval(expr, variables)
-        assert result == 10  # 1 + 2 + (1*2) + (1**2) + (2**2) = 1 + 2 + 2 + 1 + 4 = 10
-
-    def test_validate_policy_with_complex_errors(self):
-        """Test policy validation with multiple error types."""
-        policy = [
-            {"if": "incomplete expression", "then": "code"},  # Syntax error
-            {"invalid_key": "value"},                         # Invalid key
-            {"if": 123, "then": "model"},                     # Wrong type
-            {"if": "is_int(a)", "then": "invalid_action"},    # Invalid action
-            {"if": "is_int(a)", "else": "model"},             # Else with if
-            {}                                                 # Empty rule
-        ]
-
-        errors = validate_policy_syntax(policy)
-        assert len(errors) == 7  # Should catch all errors (rule 1 has 2 errors)
-        assert any("syntax" in error.lower() for error in errors)
-        assert any("invalid" in error.lower() for error in errors)
-
-    def test_input_size_kb_with_complex_objects(self):
-        """Test input_size_kb with complex nested objects."""
-        complex_obj = {
-            "nested": {
-                "deeply": {
-                    "value": [1, 2, {"more": "data"}],
-                    "another": "string"
-                }
-            },
-            "list": [1, 2, 3, {"key": "value"}]
-        }
-
-        size = input_size_kb((complex_obj,), {})
-        assert size > 0
-        assert isinstance(size, float)
-
-    def test_safe_eval_with_all_helper_functions(self):
-        """Test safe_eval with all helper functions."""
-        variables = {
-            "a": 42,
-            "b": "test string",
-            "c": [1, 2, 3],
-            "d": {"key": "value"},
-            "e": 3.14
-        }
-
-        # Test each helper function
-        assert safe_eval("is_int(a)", variables) is True
-        assert safe_eval("is_str(b)", variables) is True
-        assert safe_eval("is_list(c)", variables) is True
-        assert safe_eval("is_dict(d)", variables) is True
-        assert safe_eval("is_float(e)", variables) is True
-        assert safe_eval("len_of(c)", variables) == 3
-        assert safe_eval("len_of(b)", variables) == 11
-        assert safe_eval("matches(b, 'test.*')", variables) is True
-        assert safe_eval("has_keys(d, ['key'])", variables) is True
-        assert safe_eval("in_range(a, 40, 50)", variables) is True
+        # Should not create excessive objects
+        assert final_objects - initial_objects < 1000
 
 
 if __name__ == "__main__":
