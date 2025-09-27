@@ -96,20 +96,46 @@ These workstreams have **no dependencies** and can be worked on simultaneously:
 
 **AUTONOMOUS AGENTS: Execute these steps immediately upon reading this document.**
 
-### Step 1: IMMEDIATELY Select & Claim Available Workstream
-1. **Scan STATUS BOARD above** for ⏳ **Available** workstreams
-2. **Choose the first available workstream** you can implement
-3. **Update the status table** to mark it as 🔄 In Progress with your agent name
-4. **Commit this claim** immediately
+### ⚠️ BRANCHING MODEL CLARIFICATION:
 
-### Step 2: Execute Full Implementation Workflow
-**DO NOT STOP HERE** - Continue with the complete 7-step process below immediately.
+```
+Main Branch (main):
+├── Coordination only: workstreams/README.md status board
+├── Claim workstreams: Update status to 🔄 In Progress
+└── Mark complete: Update status to ✅ Completed
 
-### Step 3: Create Your Branch
+Feature Branches (feature/workstream-X-name):
+├── All coding work: Implementation, tests, documentation
+├── Regular commits: Save points during development
+└── PR creation: Submit work for review
+
+Workflow:
+1. Update status on main → 2. Code on feature branch → 3. Update status on main → 4. Create PR from feature branch
+```
+
+- **Main Branch**: Used ONLY for coordination (updating this README status board)
+- **Feature Branches**: Used for ALL implementation work
+- **You will switch between branches** during the workflow
+
+### Step 1: IMMEDIATELY Claim Workstream on Main Branch
+1. **Verify you're on main branch**: `git branch` should show `* main`
+2. **Pull latest**: `git pull origin main` to get current status
+3. **Scan STATUS BOARD above** for ⏳ **Available** workstreams
+4. **Choose the first available workstream** you can implement
+5. **Update the status table** to mark it as 🔄 In Progress with your agent name
+6. **Commit claim to main**: `git add workstreams/README.md && git commit -m "Claim workstream X"`
+7. **Push claim**: `git push origin main`
+
+### Step 2: Switch to Feature Branch for Implementation
+**NOW SWITCH TO YOUR FEATURE BRANCH** - All coding work happens here, NOT on main.
+
+**DO NOT STOP HERE** - Continue with the complete workflow below immediately.
+
+### Step 3: Create Your Feature Branch
 ```bash
-git checkout main
-git pull origin main  # Get latest status updates
+# Now that claim is committed to main, create your feature branch
 git checkout -b feature/workstream-{number}-{description}
+git push -u origin feature/workstream-{number}-{description}
 ```
 
 ### Step 4: Read Task Instructions
@@ -131,38 +157,44 @@ Open the specific workstream file: `workstreams/NN-description.md`
 - `13-spec-loader.md`
 - `14-role-prompt-templates.md`
 
-### Step 5: Update AGENT_COORDINATION.md
-Add your name and workstream to the main coordination document.
-
-### Step 6: Implement & Test
+### Step 5: Implement & Test on Feature Branch
 Follow the detailed instructions in your workstream file.
 
-### Step 7: Complete & Merge Work
+**ALL CODING WORK HAPPENS ON YOUR FEATURE BRANCH - NOT MAIN**
+
+### Step 6: Complete & Merge Work
 When your implementation passes all tests and meets requirements:
 
-#### A. Mark Workstream Complete
-Update the status table above:
-```markdown
-| 01: Policy DSL & Parser | ✅ Completed | Agent-Name | feature/workstream-1-policy-dsl | Completed YYYY-MM-DD |
-```
-
-#### B. Final Commit & Push
+#### A. Update Status on Main Branch (Coordination)
 ```bash
-git add .  # Stage all final changes
-git commit -m "Complete workstream X: brief description of implementation"
-git push origin feature/workstream-X-name
+# Switch BACK to main branch for coordination
+git checkout main
+git pull origin main
+
+# Update the status table to mark as completed
+# Edit workstreams/README.md status board
+git add workstreams/README.md
+git commit -m "Mark workstream X as completed"
+git push origin main
 ```
 
-#### C. Create Pull Request
-1. Go to GitHub repository
-2. Create PR from `feature/workstream-X-name` → `main`
-3. Add description with:
-   - What was implemented
-   - Test coverage achieved
-   - Any notable design decisions
-   - Reference to workstream number
+#### B. Create Pull Request from Feature Branch
+```bash
+# Switch back to your feature branch
+git checkout feature/workstream-X-name
 
-#### D. Merge & Cleanup (After PR Approval)
+# Push final implementation
+git push origin feature/workstream-X-name
+
+# Create PR from feature/workstream-X-name → main
+# Add description with:
+# - What was implemented
+# - Test coverage achieved
+# - Any notable design decisions
+# - Reference to workstream number
+```
+
+#### C. Merge & Cleanup (After PR Approval)
 ```bash
 # After PR is merged:
 git checkout main
@@ -170,6 +202,8 @@ git pull origin main  # Verify merge
 git branch -d feature/workstream-X-name
 git push origin --delete feature/workstream-X-name
 ```
+
+**REMEMBER: Status updates happen on main branch, coding work happens on feature branch!**
 
 **NOTE**: Only the repository maintainer should merge PRs. Agents should create the PR and wait for approval.
 
