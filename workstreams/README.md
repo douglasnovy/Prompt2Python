@@ -120,11 +120,41 @@ Add your name and workstream to the main coordination document.
 ### Step 6: Implement & Test
 Follow the detailed instructions in your workstream file.
 
-### Step 7: Mark Complete
-When done, update the status table:
+### Step 7: Complete & Merge Work
+When your implementation passes all tests and meets requirements:
+
+#### A. Mark Workstream Complete
+Update the status table above:
 ```markdown
 | 01: Policy DSL & Parser | ✅ Completed | Agent-Name | feature/workstream-1-policy-dsl | Completed YYYY-MM-DD |
 ```
+
+#### B. Final Commit & Push
+```bash
+git add .  # Stage all final changes
+git commit -m "Complete workstream X: brief description of implementation"
+git push origin feature/workstream-X-name
+```
+
+#### C. Create Pull Request
+1. Go to GitHub repository
+2. Create PR from `feature/workstream-X-name` → `main`
+3. Add description with:
+   - What was implemented
+   - Test coverage achieved
+   - Any notable design decisions
+   - Reference to workstream number
+
+#### D. Merge & Cleanup (After PR Approval)
+```bash
+# After PR is merged:
+git checkout main
+git pull origin main  # Verify merge
+git branch -d feature/workstream-X-name
+git push origin --delete feature/workstream-X-name
+```
+
+**NOTE**: Only the repository maintainer should merge PRs. Agents should create the PR and wait for approval.
 
 ## Coordination Rules
 
@@ -187,6 +217,26 @@ All workstreams must pass:
 - `NN-description.md` - Workstream task definition
 - NN corresponds to workstream number from requirements.md section 13
 
+## 🚀 COMPLETE AUTONOMOUS WORKFLOW FOR BACKGROUND AGENTS
+
+### Your Mission (If Assigned a Workstream):
+1. **Claim** an available workstream using the status board above
+2. **Create** feature branch and implement according to specifications
+3. **Test** thoroughly to meet quality requirements
+4. **Create PR** and mark workstream complete
+5. **Wait** for PR approval and merge
+
+### Self-Contained Process:
+- ✅ **Status tracking** via this README's status board
+- ✅ **Detailed instructions** in individual workstream files
+- ✅ **Git workflow** with safety guidelines
+- ✅ **Quality requirements** and testing standards
+- ✅ **PR creation** and merge process
+- ✅ **Coordination** with other agents
+
+### No External Coordination Needed:
+Once you claim a workstream, you work autonomously until PR submission.
+
 ## Getting Started as a New Agent
 
 ### If You're New to This Project:
@@ -202,7 +252,7 @@ All workstreams must pass:
    pip install -e ".[dev]"
    ```
 
-3. **Then follow the steps above** to claim a workstream and start contributing!
+3. **Then follow the 7-step process above** to claim a workstream and complete it autonomously!
 
 ### Getting Help
 
