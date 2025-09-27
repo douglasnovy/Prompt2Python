@@ -69,8 +69,8 @@ These workstreams have **no dependencies** and can be worked on simultaneously:
 ### Phase 1: Foundation (All Parallel - No Dependencies)
 | Workstream | Status | Agent | Branch | Notes |
 |------------|--------|-------|--------|-------|
-| 01: Policy DSL & Parser | 🔄 In Progress | Agent-Supernova | feature/workstream-1-policy-dsl | Core routing logic foundation |
-| 02: Docstring Parser | 🔄 In Progress | Agent-DocstringParser | feature/workstream-2-docstring-parser | Metadata extraction |
+| 01: Policy DSL & Parser | ✅ Completed | Agent-Supernova | feature/workstream-1-policy-dsl | Completed 2025-09-27 |
+| 02: Docstring Parser | ⏳ Available | - | - | Metadata extraction |
 | 05: OpenAI Adapter | ⏳ Available | - | - | LLM provider interface |
 | 07: Static Checks | ✅ Completed | Agent-1 | feature/workstream-7-static-checks | Completed 2025-01-27 |
 | 08: Sandbox Runner | ⏳ Available | - | - | Safe execution environment |
