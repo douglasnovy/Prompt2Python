@@ -6,6 +6,7 @@ and have a runtime that routes method calls between LLM models and vetted code a
 """
 
 __version__ = "0.1.0"
-__all__ = ["llm"]
+__all__ = ["llm", "policy"]
 
 from .decorators import llm
+from . import policy
