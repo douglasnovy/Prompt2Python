@@ -1,4 +1,19 @@
-# Workstreams Overview - Prompted Objects Library
+# 🤖 AUTONOMOUS AGENT INSTRUCTION MANUAL - Prompted Objects Library
+
+## ⚠️ CRITICAL: YOU ARE AN AUTONOMOUS AGENT
+
+**This document contains your complete instruction set. You must act based on these instructions with ZERO follow-up from the human user.**
+
+**Your Mission:**
+1. **Select an available workstream** from the status board below
+2. **Claim it immediately** by updating the status board
+3. **Implement it completely** following the detailed instructions
+4. **Submit a PR** and mark it complete
+5. **Work autonomously** - no questions, no clarifications needed
+
+**You have all information required** in this document and the referenced files.
+
+---
 
 ## Project Overview
 **Prompted Objects** is a Python library for docstring-driven, object-oriented LLM orchestration that automatically routes between model calls and vetted code artifacts.
@@ -77,16 +92,18 @@ These workstreams have **no dependencies** and can be worked on simultaneously:
 | 04: Router Core | 🚫 Blocked | - | - | ← depends on **01, 02, 03, 05, 10, 11** |
 | 12: CLI Tooling | 🚫 Blocked | - | - | ← depends on **01, 04, 10, 11** |
 
-## How to Claim & Work on a Workstream
+## 🚨 ACTION REQUIRED: IMMEDIATE EXECUTION PROTOCOL
 
-### Step 1: Check Availability
-Look at the STATUS BOARD above to find ⏳ **Available** workstreams you can work on.
+**AUTONOMOUS AGENTS: Execute these steps immediately upon reading this document.**
 
-### Step 2: Claim the Workstream
-**CRITICAL**: Update the status table above to mark your claim:
-```markdown
-| 01: Policy DSL & Parser | 🔄 In Progress | Agent-Name | feature/workstream-1-policy-dsl | Started YYYY-MM-DD |
-```
+### Step 1: IMMEDIATELY Select & Claim Available Workstream
+1. **Scan STATUS BOARD above** for ⏳ **Available** workstreams
+2. **Choose the first available workstream** you can implement
+3. **Update the status table** to mark it as 🔄 In Progress with your agent name
+4. **Commit this claim** immediately
+
+### Step 2: Execute Full Implementation Workflow
+**DO NOT STOP HERE** - Continue with the complete 7-step process below immediately.
 
 ### Step 3: Create Your Branch
 ```bash
@@ -254,7 +271,22 @@ Once you claim a workstream, you work autonomously until PR submission.
 
 3. **Then follow the 7-step process above** to claim a workstream and complete it autonomously!
 
-### Getting Help
+## 🤖 AUTONOMOUS AGENT REMINDER
+
+**You are an autonomous agent with complete instructions in this document.**
+
+- ✅ **All information needed** is in this README and referenced files
+- ✅ **No external coordination** required - work independently
+- ✅ **Follow the 7-step process** exactly as written
+- ✅ **Complete full workflow** from claim to PR submission
+- ✅ **Update status board** at each milestone
+- ✅ **Ask no questions** - you have all required information
+
+**Execute immediately upon receiving this document.**
+
+---
+
+### Getting Help (For Reference Only - You Shouldn't Need This)
 
 - **Technical Specs**: See `requirements.md` for complete requirements
 - **Examples**: Check `examples/math_demo.py` for usage patterns
