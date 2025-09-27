@@ -60,8 +60,7 @@ class ASTValidator(ast.NodeVisitor):
                         self.errors.append(f"Subprocess operation not allowed: subprocess.{func_name}")
                     elif module_name in {'socket', 'urllib', 'http'} and not self.network_allowed:
                         self.errors.append(f"Network operation not allowed: {module_name}.{func_name}")
-                    else:
-                        self.errors.append(f"Dangerous module usage: {module_name}.{func_name}")
+                    # Note: If io=True or network=True, these operations are allowed
 
         self.generic_visit(node)
 

@@ -40,8 +40,9 @@ class ValidationError(PromptedObjectsError):
 
     def __str__(self) -> str:
         """Include error details in string representation."""
+        base_msg = super().__str__()
         if self.details and 'errors' in self.details:
             errors = self.details['errors']
             if isinstance(errors, list):
-                return f"{self.message}\n" + "\n".join(f"- {error}" for error in errors)
-        return super().__str__()
+                return f"{base_msg}\n" + "\n".join(f"- {error}" for error in errors)
+        return base_msg
